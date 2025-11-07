@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.11.35312.102
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BioLogicZipper", "BioLogicZipper.csproj", "{8BEA209F-F73E-4E90-B53C-62C2427DDE12}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{8BEA209F-F73E-4E90-B53C-62C2427DDE12}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8BEA209F-F73E-4E90-B53C-62C2427DDE12}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8BEA209F-F73E-4E90-B53C-62C2427DDE12}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8BEA209F-F73E-4E90-B53C-62C2427DDE12}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {5420A2DF-AD76-4D90-A2FF-07FAB81370D8}
+	EndGlobalSection
+EndGlobal
