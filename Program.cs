@@ -22,6 +22,59 @@ namespace BioLogicZipper
             _ => c.ToString().ToLower()
         };
 
+        static string? SelectBestMatchingMps(string groupBaseName, string[] mpsFiles)
+        {
+            if (mpsFiles == null || mpsFiles.Length == 0)
+                return null;
+
+            string groupName = Path.GetFileNameWithoutExtension(groupBaseName);
+
+            int Score(string mpsPath)
+            {
+                string mpsName = Path.GetFileNameWithoutExtension(mpsPath);
+                int score = 0;
+
+                int len = Math.Min(groupName.Length, mpsName.Length);
+
+                for (int i = 0; i < len; i++)
+                {
+                    if (groupName[i] == mpsName[i])
+                    {
+                        score += (i < 10) ? 2 : 1; // double weight for first 10 chars
+                    }
+                    else
+                    {
+                        break; // stop at first mismatch
+                    }
+                }
+
+                return score;
+            }
+
+            return mpsFiles
+                .Select(mps => new { Path = mps, Score = Score(mps) })
+                .OrderByDescending(x => x.Score)
+                .ThenBy(x => Path.GetFileName(x.Path).Length)
+                .First()
+                .Path;
+        }
+
+        static string GetOwner(string baseName)
+        {
+            int underscoreIndex = baseName.IndexOf('_');
+
+            if (underscoreIndex <= 0)
+                return "";
+
+            string candidate = baseName.Substring(0, underscoreIndex);
+
+            if (candidate.Contains(' '))
+                return "";
+
+            return candidate+"_";
+        }
+
+
         [STAThread]
         static void Main(string[] args)
         {
@@ -110,27 +163,41 @@ namespace BioLogicZipper
 
             foreach (var group in fileGroups)
             {
-                string baseName = Path.GetFileName(group.Key); // just the base name
+                string baseName = Path.GetFileName(group.Key);
+
+                string owner = GetOwner(baseName);
+
+                // Determine unfinished_mps_only before creating the output file
+                bool unfinished_mps_only = !group.Any(f =>
+                    string.Equals(Path.GetExtension(f), ".mpr", StringComparison.OrdinalIgnoreCase));
+
                 CompressionType compression = CompressionType.GZip;
-                string tarFile = Path.Combine(outputDir, $"part_{baseName}_{counter}.tar.{GetExtension(compression)}");
+
+                string suffix = unfinished_mps_only ? "_NO_MPR_found" : "";
+                string tarFile = Path.Combine(
+                    outputDir,
+                    $"{owner}part_{baseName}_{counter}{suffix}.tar.{GetExtension(compression)}"
+                );
 
                 using (var stream = File.Create(tarFile))
                 using (var writer = WriterFactory.Open(stream, ArchiveType.Tar, compression))
                 {
                     if (mpsFile.Length >= 1)
                     {
-                        string mpsFileName = Path.GetFileName(mpsFile[0]);
-                        writer.Write(mpsFileName, mpsFile[0]);
+                        var selectedMps = SelectBestMatchingMps(baseName, mpsFile);
+                        if (selectedMps != null)
+                        {
+                            string mpsFileName = Path.GetFileName(selectedMps);
+                            writer.Write(mpsFileName, selectedMps);
+                        }
                     }
+
                     foreach (string file in group)
                     {
-                        // string relativePath = Path.GetRelativePath(tempDir, file);
-                        // writer.Write(relativePath, file); // with folder remain 
-                        // Console.WriteLine($"Added: {relativePath}");
-                        if (Path.GetExtension(file) != ".mps")
+                        if (!string.Equals(Path.GetExtension(file), ".mps", StringComparison.OrdinalIgnoreCase))
                         {
-                            string fileName = Path.GetFileName(file); // no folders
-                            writer.Write(fileName, file);             // flatten structure
+                            string fileName = Path.GetFileName(file);
+                            writer.Write(fileName, file);
                             Console.WriteLine($"Added: {fileName}");
                         }
                     }
@@ -140,21 +207,26 @@ namespace BioLogicZipper
                 counter++;
             }
 
+
             // Create single MPS-only archive
             if (mpsFile.Length >= 1)
-            {
-                string mpsFileName = Path.GetFileName(mpsFile[0]);
-                string mpsFileNameWoExt = Path.GetFileNameWithoutExtension(mpsFile[0]);
-                string mpsArchive = Path.Combine(outputDir, $"part_{mpsFileNameWoExt}_mps_only.tar.{GetExtension(CompressionType.GZip)}");
-
-                using (var stream = File.Create(mpsArchive))
-                using (var writer = WriterFactory.Open(stream, ArchiveType.Tar, CompressionType.GZip))
+                for (int i = 0; i < mpsFile.Length; i++)
                 {
-                    writer.Write(mpsFileName, mpsFile[0]);
-                }
+                    {
+                        string mpsFileName = Path.GetFileName(mpsFile[i]);
+                        string mpsFileNameWoExt = Path.GetFileNameWithoutExtension(mpsFile[i]);
+                        string mpsArchive = Path.Combine(outputDir, $"part_{mpsFileNameWoExt}_mps_only.tar.{GetExtension(CompressionType.GZip)}");
 
-                Console.WriteLine($"Created {mpsArchive}");
-            }
+                        using (var stream = File.Create(mpsArchive))
+                        using (var writer = WriterFactory.Open(stream, ArchiveType.Tar, CompressionType.GZip))
+                        {
+                            writer.Write(mpsFileName, mpsFile[i]);
+                        }
+
+                        Console.WriteLine($"Created {mpsArchive}");
+                    }
+                }
+            
 
             if (args.Length == 0)
             {
