@@ -102,30 +102,50 @@ namespace BioLogicZipper
                 archivePath = args[0];
             }
 
-            string tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
-            Directory.CreateDirectory(tempDir);
+            // This will be the directory that contains the files to process
+            string tempDir;
+            bool usesTempDir = false;
 
-            Console.WriteLine($"Extracting to temp directory: {tempDir}");
-
-            if (archivePath.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
+            // 1) CLI: if user passes a folder → use it directly
+            if (Directory.Exists(archivePath))
             {
-                ZipFile.ExtractToDirectory(archivePath, tempDir);
-            }
-            else if (archivePath.EndsWith(".tar", StringComparison.OrdinalIgnoreCase))
-            {
-                using var archive = TarArchive.Open(archivePath);
-                foreach (var entry in archive.Entries)
-                {
-                    if (!entry.IsDirectory)
-                    {
-                        entry.WriteToDirectory(tempDir, new ExtractionOptions { ExtractFullPath = true, Overwrite = true });
-                    }
-                }
+                tempDir = archivePath;
+                usesTempDir = false;
+                Console.WriteLine($"Using existing directory as input: {tempDir}");
             }
             else
             {
-                Console.WriteLine("Unsupported file format.");
-                return;
+                // 2) Otherwise: assume it's an archive that must be extracted
+                tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+                Directory.CreateDirectory(tempDir);
+                usesTempDir = true;
+
+                Console.WriteLine($"Extracting to temp directory: {tempDir}");
+
+                if (archivePath.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
+                {
+                    ZipFile.ExtractToDirectory(archivePath, tempDir);
+                }
+                else if (archivePath.EndsWith(".tar", StringComparison.OrdinalIgnoreCase))
+                {
+                    using var archive = TarArchive.Open(archivePath);
+                    foreach (var entry in archive.Entries)
+                    {
+                        if (!entry.IsDirectory)
+                        {
+                            entry.WriteToDirectory(tempDir, new ExtractionOptions
+                            {
+                                ExtractFullPath = true,
+                                Overwrite = true
+                            });
+                        }
+                    }
+                }
+                else
+                {
+                    Console.WriteLine("Unsupported file format and not a directory.");
+                    return;
+                }
             }
 
             string[] subDirs = Directory.GetDirectories(tempDir);
@@ -229,7 +249,20 @@ namespace BioLogicZipper
                         Console.WriteLine($"Created {mpsArchive}");
                     }
                 }
-            
+
+            if (usesTempDir && Directory.Exists(tempDir))
+            {
+                try
+                {
+                    Directory.Delete(tempDir, true);
+                    Console.WriteLine($"Temporary folder {tempDir} cleaned up.");
+                }
+                catch
+                {
+                    Console.WriteLine("Warning: Could not remove temporary folder.");
+                }
+            }
+
 
             if (args.Length == 0)
             {
