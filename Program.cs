@@ -215,7 +215,10 @@ namespace BioLogicZipper
                     {
                         string mpsFileName = Path.GetFileName(mpsFile[i]);
                         string mpsFileNameWoExt = Path.GetFileNameWithoutExtension(mpsFile[i]);
-                        string mpsArchive = Path.Combine(outputDir, $"part_{mpsFileNameWoExt}_mps_only.tar.{GetExtension(CompressionType.GZip)}");
+
+                        string owner = GetOwner(mpsFileNameWoExt);
+
+                        string mpsArchive = Path.Combine(outputDir, $"{owner}part_{mpsFileNameWoExt}_mps_only.tar.{GetExtension(CompressionType.GZip)}");
 
                         using (var stream = File.Create(mpsArchive))
                         using (var writer = WriterFactory.Open(stream, ArchiveType.Tar, CompressionType.GZip))
