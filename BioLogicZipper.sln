@@ -5,6 +5,8 @@ VisualStudioVersion = 17.11.35312.102
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BioLogicZipper", "BioLogicZipper.csproj", "{8BEA209F-F73E-4E90-B53C-62C2427DDE12}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BioLogicZipper.Tests", "BioLogicZipper.Tests\BioLogicZipper.Tests.csproj", "{9F3843FA-284B-4FE6-BF56-196B1CD9E2BA}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -15,6 +17,10 @@ Global
 		{8BEA209F-F73E-4E90-B53C-62C2427DDE12}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{8BEA209F-F73E-4E90-B53C-62C2427DDE12}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{8BEA209F-F73E-4E90-B53C-62C2427DDE12}.Release|Any CPU.Build.0 = Release|Any CPU
+		{9F3843FA-284B-4FE6-BF56-196B1CD9E2BA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{9F3843FA-284B-4FE6-BF56-196B1CD9E2BA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{9F3843FA-284B-4FE6-BF56-196B1CD9E2BA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{9F3843FA-284B-4FE6-BF56-196B1CD9E2BA}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

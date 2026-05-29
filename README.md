@@ -192,6 +192,30 @@ Release publishing is configured in `BioLogicZipper.csproj` for a self-contained
 
 ---
 
+## 🧪 Tests
+
+The repository includes an xUnit test project in `BioLogicZipper.Tests`.
+
+The golden-file tests run the built CLI process for every archive in `TestFiles/Input`, write generated archives to a temporary directory, and compare the resulting `.tar.gz` file names against `TestFiles/Output`.
+
+Archive bytes are compared first. If archive container metadata differs, the test temporarily extracts the matching `.tar.gz` files and compares their entry names and file bytes.
+
+Run the test routine on Windows:
+
+```
+dotnet test BioLogicZipper.sln
+```
+
+From WSL, use the Windows-native SDK because the app targets WindowsDesktop/WinForms:
+
+```
+"/mnt/c/Program Files/dotnet/dotnet.exe" test BioLogicZipper.sln
+```
+
+When expected output intentionally changes, regenerate the matching files under `TestFiles/Output/<set>` and review the byte-for-byte diff before committing.
+
+---
+
 ## 📄 License
 
 MIT License
