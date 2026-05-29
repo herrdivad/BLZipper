@@ -4,10 +4,8 @@ using System.IO.Compression;
 using System.Linq;
 using System.Windows.Forms;
 using SharpCompress.Archives;
-using SharpCompress.Archives.Tar;
 using SharpCompress.Common;
 using SharpCompress.Writers;
-using SharpCompress.Writers.Tar;
 
 namespace BioLogicZipper
 {
@@ -59,6 +57,19 @@ namespace BioLogicZipper
                 .Path;
         }
 
+        static bool IsSafeArchiveEntryPath(string destinationDir, string? entryPath)
+        {
+            if (string.IsNullOrWhiteSpace(entryPath) || Path.IsPathRooted(entryPath))
+                return false;
+
+            string fullDestinationDir = Path.GetFullPath(destinationDir);
+            if (!fullDestinationDir.EndsWith(Path.DirectorySeparatorChar))
+                fullDestinationDir += Path.DirectorySeparatorChar;
+
+            string fullEntryPath = Path.GetFullPath(Path.Combine(fullDestinationDir, entryPath));
+            return fullEntryPath.StartsWith(fullDestinationDir, StringComparison.OrdinalIgnoreCase);
+        }
+
         static string GetOwner(string baseName)
         {
             int underscoreIndex = baseName.IndexOf('_');
@@ -105,7 +116,10 @@ namespace BioLogicZipper
             // This will be the directory that contains the files to process
             string tempDir;
             bool usesTempDir = false;
+            string? tempRootDir = null;
 
+            try
+            {
             // 1) CLI: if user passes a folder → use it directly
             if (Directory.Exists(archivePath))
             {
@@ -117,6 +131,7 @@ namespace BioLogicZipper
             {
                 // 2) Otherwise: assume it's an archive that must be extracted
                 tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+                tempRootDir = tempDir;
                 Directory.CreateDirectory(tempDir);
                 usesTempDir = true;
 
@@ -128,11 +143,14 @@ namespace BioLogicZipper
                 }
                 else if (archivePath.EndsWith(".tar", StringComparison.OrdinalIgnoreCase))
                 {
-                    using var archive = TarArchive.Open(archivePath);
+                    using var archive = ArchiveFactory.OpenArchive(archivePath);
                     foreach (var entry in archive.Entries)
                     {
                         if (!entry.IsDirectory)
                         {
+                            if (!IsSafeArchiveEntryPath(tempDir, entry.Key))
+                                throw new InvalidDataException($"Unsafe archive entry path: {entry.Key}");
+
                             entry.WriteToDirectory(tempDir, new ExtractionOptions
                             {
                                 ExtractFullPath = true,
@@ -176,7 +194,7 @@ namespace BioLogicZipper
 
             // Group files by filename without extension
             var fileGroups = allFiles
-                .Where(f => Path.GetExtension(f).ToLower() != ".mps")
+                .Where(f => !string.Equals(Path.GetExtension(f), ".mps", StringComparison.OrdinalIgnoreCase))
                 .GroupBy(f => Path.Combine(Path.GetDirectoryName(f) ?? "", Path.GetFileNameWithoutExtension(f)));
 
             int counter = 1;
@@ -200,7 +218,7 @@ namespace BioLogicZipper
                 );
 
                 using (var stream = File.Create(tarFile))
-                using (var writer = WriterFactory.Open(stream, ArchiveType.Tar, compression))
+                using (var writer = WriterFactory.OpenWriter(stream, ArchiveType.Tar, new WriterOptions(compression)))
                 {
                     if (mpsFile.Length >= 1)
                     {
@@ -241,7 +259,7 @@ namespace BioLogicZipper
                         string mpsArchive = Path.Combine(outputDir, $"{owner}part_{mpsFileNameWoExt}_mps_only.tar.{GetExtension(CompressionType.GZip)}");
 
                         using (var stream = File.Create(mpsArchive))
-                        using (var writer = WriterFactory.Open(stream, ArchiveType.Tar, CompressionType.GZip))
+                        using (var writer = WriterFactory.OpenWriter(stream, ArchiveType.Tar, new WriterOptions(CompressionType.GZip)))
                         {
                             writer.Write(mpsFileName, mpsFile[i]);
                         }
@@ -250,25 +268,27 @@ namespace BioLogicZipper
                     }
                 }
 
-            if (usesTempDir && Directory.Exists(tempDir))
-            {
-                try
-                {
-                    Directory.Delete(tempDir, true);
-                    Console.WriteLine($"Temporary folder {tempDir} cleaned up.");
-                }
-                catch
-                {
-                    Console.WriteLine("Warning: Could not remove temporary folder.");
-                }
-            }
-
-
             if (args.Length == 0)
             {
                 Console.WriteLine("Done.");
                 Console.WriteLine("Press any key to exit...");
                 Console.ReadKey();
+            }
+            }
+            finally
+            {
+                if (usesTempDir && tempRootDir != null && Directory.Exists(tempRootDir))
+                {
+                    try
+                    {
+                        Directory.Delete(tempRootDir, true);
+                        Console.WriteLine($"Temporary folder {tempRootDir} cleaned up.");
+                    }
+                    catch
+                    {
+                        Console.WriteLine("Warning: Could not remove temporary folder.");
+                    }
+                }
             }
         }
     }

@@ -178,6 +178,20 @@ part_A01_mps_only.tar.gz
 
 ---
 
+## 🏗 Build and publish
+
+Install the .NET 8 SDK to build from Windows or WSL. The project sets `EnableWindowsTargeting=true`, so WSL can compile the `net8.0-windows` target. Release publishing is configured in `BioLogicZipper.csproj` for a self-contained `win-x64` single-file executable in `dist\`.
+
+```
+dotnet restore BioLogicZipper.sln
+dotnet build BioLogicZipper.sln
+dotnet publish BioLogicZipper.csproj -c Release
+```
+
+The published `.exe` is a Windows application and should be tested on Windows.
+
+---
+
 ## 📄 License
 
 MIT License
