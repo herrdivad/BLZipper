@@ -2,7 +2,7 @@
 
 ## High Priority
 
-- Fix relative input path handling. `Path.GetDirectoryName("data.zip")` can return an empty value, which makes `Directory.CreateDirectory(outputDir)` fail. Normalize input with `Path.GetFullPath(...)` and fall back to `Directory.GetCurrentDirectory()` when needed.
+- ~~Fix relative input path handling. `Path.GetDirectoryName("data.zip")` can return an empty value, which makes `Directory.CreateDirectory(outputDir)` fail. Normalize input with `Path.GetFullPath(...)` and fall back to `Directory.GetCurrentDirectory()` when needed.~~
 
 - ~~Ensure temporary directories are always cleaned up. Archive processing should use a `try/finally` around extraction and packaging. Keep the original temp root separately so cleanup still removes it after entering a single-root archive folder.~~
 

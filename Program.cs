@@ -113,6 +113,8 @@ namespace BioLogicZipper
                 archivePath = args[0];
             }
 
+            archivePath = Path.GetFullPath(archivePath);
+
             // This will be the directory that contains the files to process
             string tempDir;
             bool usesTempDir = false;
@@ -168,7 +170,7 @@ namespace BioLogicZipper
 
             string[] subDirs = Directory.GetDirectories(tempDir);
             string[] subFiles = Directory.GetFiles(tempDir);
-            string baseDir = Path.GetDirectoryName(archivePath);
+            string baseDir = Path.GetDirectoryName(archivePath) ?? Directory.GetCurrentDirectory();
             string outputDir = baseDir;
 
             if (args.Length > 1)
