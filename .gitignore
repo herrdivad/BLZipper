@@ -419,5 +419,6 @@ FodyWeavers.xsd
 
 AGENTS*
 CLAUDE*
+*claude
 
 launchSettings.json

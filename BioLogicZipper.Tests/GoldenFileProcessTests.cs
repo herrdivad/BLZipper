@@ -13,10 +13,12 @@ public sealed class GoldenFileProcessTests
     [InlineData("Messprotokoll_1.zip", "MP1")]
     [InlineData("Messprotokoll_2.zip", "MP2")]
     [InlineData("Multi_MP.zip", "MultiMP")]
-    // Expected to FAIL until the .mps matching is fixed: across folders the tool picks
-    // an .mps from the wrong folder. Cell_02's group must contain A01_run_v2.mps, but
-    // the current tie-break selects Cell_01's shorter-named A01_run.mps instead.
+    // Folder context: a group must take the .mps from its own folder branch, not from a
+    // sibling experiment folder. Cell_02's group gets A01_run_v2.mps, Cell_01's gets A01_run.mps.
     [InlineData("CrossFolder_noRealData.zip", "CrossFolder")]
+    // Zero-score: the only same-folder .mps shares no prefix with the group. It is still
+    // bundled, but the archive name is tagged with "_zeroScoreMps" for review.
+    [InlineData("ZeroScore_noRealData.zip", "ZeroScore")]
     public void CliProcess_CreatesExpectedGoldenFiles(string inputArchiveName, string expectedOutputSet)
     {
         string repositoryRoot = FindRepositoryRoot();

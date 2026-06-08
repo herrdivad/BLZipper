@@ -64,12 +64,20 @@ part_<name>_<counter>_NO_MPR_found.tar.gz
 
 If multiple `.mps` files exist, the tool automatically selects the most relevant one based on filename similarity scoring.
 
+**Folder context:** only `.mps` files in the group's own folder or an ancestor folder are considered. This matches the typical BioLogic layout (the `.mps` lives in the experiment root, the data in technique sub-folders) while preventing an `.mps` from a sibling experiment folder from being selected.
+
 Scoring rules:
 
 * Sequential character match = +1
 * First 10 matching characters = double weight
 * Best score wins
 * Tie breaker = shortest filename
+
+If the best match within the folder context has a score of `0` (the `.mps` shares no leading characters with the group), it is still bundled, but the output name is tagged so it can be reviewed:
+
+```
+part_<name>_<counter>_zeroScoreMps.tar.gz
+```
 
 ---
 

@@ -18,6 +18,9 @@ namespace BioLogicZipper
             public string? TempRootDir;
         }
 
+        // A candidate .mps file together with its prefix-match score against a group.
+        sealed record MpsMatch(string Path, int Score);
+
         static string GetExtension(CompressionType c) => c switch
         {
             CompressionType.GZip => "gz",
@@ -27,7 +30,7 @@ namespace BioLogicZipper
             _ => c.ToString().ToLower()
         };
 
-        static string? SelectBestMatchingMps(string groupBaseName, string[] mpsFiles)
+        static MpsMatch? SelectBestMatchingMps(string groupBaseName, string[] mpsFiles)
         {
             if (mpsFiles == null || mpsFiles.Length == 0)
                 return null;
@@ -57,11 +60,10 @@ namespace BioLogicZipper
             }
 
             return mpsFiles
-                .Select(mps => new { Path = mps, Score = Score(mps) })
+                .Select(mps => new MpsMatch(mps, Score(mps)))
                 .OrderByDescending(x => x.Score)
                 .ThenBy(x => Path.GetFileName(x.Path).Length)
-                .First()
-                .Path;
+                .First();
         }
 
         static bool IsSafeArchiveEntryPath(string destinationDir, string? entryPath)
@@ -90,6 +92,23 @@ namespace BioLogicZipper
                 return "";
 
             return candidate+"_";
+        }
+
+        // True when candidateDir is the same folder as groupDir or an ancestor of it.
+        // Used to keep .mps matching within a group's own folder branch (the .mps may live
+        // in an experiment root above the data), while excluding sibling experiment folders.
+        static bool IsSameOrAncestorDirectory(string candidateDir, string groupDir)
+        {
+            string candidate = Path.GetFullPath(candidateDir);
+            string group = Path.GetFullPath(groupDir);
+
+            if (string.Equals(candidate, group, StringComparison.OrdinalIgnoreCase))
+                return true;
+
+            if (!candidate.EndsWith(Path.DirectorySeparatorChar))
+                candidate += Path.DirectorySeparatorChar;
+
+            return group.StartsWith(candidate, StringComparison.OrdinalIgnoreCase);
         }
 
         // Resolves the input archive/folder path from CLI args or a GUI dialog.
@@ -223,13 +242,34 @@ namespace BioLogicZipper
 
                 string owner = GetOwner(baseName);
 
+                string groupDir = Path.GetDirectoryName(group.Key) ?? "";
+
                 // Determine unfinished_mps_only before creating the output file
                 bool unfinished_mps_only = !group.Any(f =>
                     string.Equals(Path.GetExtension(f), ".mpr", StringComparison.OrdinalIgnoreCase));
 
+                // Folder context: only consider .mps files in the group's own folder or an
+                // ancestor folder. This keeps the typical BioLogic layout working (the .mps
+                // sits in the experiment root, data in technique sub-folders) while preventing
+                // selection of an .mps from a sibling experiment folder.
+                string[] candidateMps = mpsFile
+                    .Where(m => IsSameOrAncestorDirectory(Path.GetDirectoryName(m) ?? "", groupDir))
+                    .ToArray();
+
+                MpsMatch? mpsMatch = SelectBestMatchingMps(baseName, candidateMps);
+
+                // A score of 0 means the selected .mps shares no leading characters with the
+                // group; it is still bundled, but the name is tagged so it can be reviewed.
+                bool zeroScoreMps = mpsMatch != null && mpsMatch.Score == 0;
+
                 CompressionType compression = CompressionType.GZip;
 
-                string suffix = unfinished_mps_only ? "_NO_MPR_found" : "";
+                string suffix = "";
+                if (unfinished_mps_only)
+                    suffix += "_NO_MPR_found";
+                if (zeroScoreMps)
+                    suffix += "_zeroScoreMps";
+
                 string tarFile = Path.Combine(
                     outputDir,
                     $"{owner}part_{baseName}_{counter}{suffix}.tar.{GetExtension(compression)}"
@@ -238,14 +278,10 @@ namespace BioLogicZipper
                 using (var stream = File.Create(tarFile))
                 using (var writer = WriterFactory.OpenWriter(stream, ArchiveType.Tar, new WriterOptions(compression)))
                 {
-                    if (mpsFile.Length >= 1)
+                    if (mpsMatch != null)
                     {
-                        var selectedMps = SelectBestMatchingMps(baseName, mpsFile);
-                        if (selectedMps != null)
-                        {
-                            string mpsFileName = Path.GetFileName(selectedMps);
-                            writer.Write(mpsFileName, selectedMps);
-                        }
+                        string mpsFileName = Path.GetFileName(mpsMatch.Path);
+                        writer.Write(mpsFileName, mpsMatch.Path);
                     }
 
                     foreach (string file in group)
