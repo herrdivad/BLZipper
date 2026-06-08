@@ -418,5 +418,6 @@ FodyWeavers.xsd
 *.msp
 
 AGENTS*
+CLAUDE*
 
 launchSettings.json

@@ -11,6 +11,13 @@ namespace BioLogicZipper
 {
     class Program
     {
+        // Tracks how the working directory was obtained so it can be cleaned up afterwards.
+        sealed class ExtractionContext
+        {
+            public bool UsesTempDir;
+            public string? TempRootDir;
+        }
+
         static string GetExtension(CompressionType c) => c switch
         {
             CompressionType.GZip => "gz",
@@ -85,11 +92,11 @@ namespace BioLogicZipper
             return candidate+"_";
         }
 
-
-        [STAThread]
-        static void Main(string[] args)
+        // Resolves the input archive/folder path from CLI args or a GUI dialog.
+        // Returns null when the user cancels the dialog.
+        static string? ResolveInput(string[] args)
         {
-            string archivePath = "";
+            string archivePath;
 
             if (args.Length == 0)
             {
@@ -105,7 +112,7 @@ namespace BioLogicZipper
                 else
                 {
                     Console.WriteLine("No file selected.");
-                    return;
+                    return null;
                 }
             }
             else
@@ -113,63 +120,64 @@ namespace BioLogicZipper
                 archivePath = args[0];
             }
 
-            archivePath = Path.GetFullPath(archivePath);
+            return Path.GetFullPath(archivePath);
+        }
 
-            // This will be the directory that contains the files to process
-            string tempDir;
-            bool usesTempDir = false;
-            string? tempRootDir = null;
-
-            try
-            {
+        // Provides the directory that contains the files to process. Folders are used
+        // directly; archives are extracted into an isolated temp directory recorded in
+        // the context so it can be cleaned up later. Returns null when the input is
+        // neither a supported archive nor a directory.
+        static string? PrepareWorkingDirectory(string archivePath, ExtractionContext context)
+        {
             // 1) CLI: if user passes a folder → use it directly
             if (Directory.Exists(archivePath))
             {
-                tempDir = archivePath;
-                usesTempDir = false;
-                Console.WriteLine($"Using existing directory as input: {tempDir}");
+                Console.WriteLine($"Using existing directory as input: {archivePath}");
+                return archivePath;
+            }
+
+            // 2) Otherwise: assume it's an archive that must be extracted
+            string tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+            context.TempRootDir = tempDir;
+            context.UsesTempDir = true;
+            Directory.CreateDirectory(tempDir);
+
+            Console.WriteLine($"Extracting to temp directory: {tempDir}");
+
+            if (archivePath.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
+            {
+                ZipFile.ExtractToDirectory(archivePath, tempDir);
+            }
+            else if (archivePath.EndsWith(".tar", StringComparison.OrdinalIgnoreCase))
+            {
+                using var archive = ArchiveFactory.OpenArchive(archivePath);
+                foreach (var entry in archive.Entries)
+                {
+                    if (!entry.IsDirectory)
+                    {
+                        if (!IsSafeArchiveEntryPath(tempDir, entry.Key))
+                            throw new InvalidDataException($"Unsafe archive entry path: {entry.Key}");
+
+                        entry.WriteToDirectory(tempDir, new ExtractionOptions
+                        {
+                            ExtractFullPath = true,
+                            Overwrite = true
+                        });
+                    }
+                }
             }
             else
             {
-                // 2) Otherwise: assume it's an archive that must be extracted
-                tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
-                tempRootDir = tempDir;
-                Directory.CreateDirectory(tempDir);
-                usesTempDir = true;
-
-                Console.WriteLine($"Extracting to temp directory: {tempDir}");
-
-                if (archivePath.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
-                {
-                    ZipFile.ExtractToDirectory(archivePath, tempDir);
-                }
-                else if (archivePath.EndsWith(".tar", StringComparison.OrdinalIgnoreCase))
-                {
-                    using var archive = ArchiveFactory.OpenArchive(archivePath);
-                    foreach (var entry in archive.Entries)
-                    {
-                        if (!entry.IsDirectory)
-                        {
-                            if (!IsSafeArchiveEntryPath(tempDir, entry.Key))
-                                throw new InvalidDataException($"Unsafe archive entry path: {entry.Key}");
-
-                            entry.WriteToDirectory(tempDir, new ExtractionOptions
-                            {
-                                ExtractFullPath = true,
-                                Overwrite = true
-                            });
-                        }
-                    }
-                }
-                else
-                {
-                    Console.WriteLine("Unsupported file format and not a directory.");
-                    return;
-                }
+                Console.WriteLine("Unsupported file format and not a directory.");
+                return null;
             }
 
-            string[] subDirs = Directory.GetDirectories(tempDir);
-            string[] subFiles = Directory.GetFiles(tempDir);
+            return tempDir;
+        }
+
+        // Determines the output directory, honoring an optional second CLI argument.
+        static string ResolveOutputDirectory(string[] args, string archivePath)
+        {
             string baseDir = Path.GetDirectoryName(archivePath) ?? Directory.GetCurrentDirectory();
             string outputDir = baseDir;
 
@@ -180,19 +188,27 @@ namespace BioLogicZipper
             }
 
             Directory.CreateDirectory(outputDir);
+            return outputDir;
+        }
 
-            // Special case: ZIP contains a single root folder (e.g., same name as ZIP file)
-            // var files = Directory.GetFiles(subDirs[0]);
-            // var dirs = Directory.GetDirectories(subDirs[0]);
+        // Special case: the archive contains a single root folder (e.g., same name as the
+        // ZIP file) → dive into that folder instead of treating it as the content root.
+        static string ResolveContentDirectory(string tempDir)
+        {
+            string[] subDirs = Directory.GetDirectories(tempDir);
+            string[] subFiles = Directory.GetFiles(tempDir);
+
             if (subDirs.Length == 1 && subFiles.Length == 0)
-            {
-                // Dive into that folder instead
-                tempDir = subDirs[0];
-                subDirs = Directory.GetDirectories(tempDir);
-            }
+                return subDirs[0];
 
-            string[] allFiles = Directory.GetFiles(tempDir, "*", SearchOption.AllDirectories);
-            string[] mpsFile = Directory.GetFiles(tempDir, "*.mps", SearchOption.AllDirectories);
+            return tempDir;
+        }
+
+        // Groups non-.mps files by base filename and writes one TAR archive per group,
+        // adding the best-matching .mps file to each group.
+        static void CreateGroupArchives(string contentDir, string[] mpsFile, string outputDir)
+        {
+            string[] allFiles = Directory.GetFiles(contentDir, "*", SearchOption.AllDirectories);
 
             // Group files by filename without extension
             var fileGroups = allFiles
@@ -246,9 +262,11 @@ namespace BioLogicZipper
                 Console.WriteLine($"Created {tarFile}");
                 counter++;
             }
+        }
 
-
-            // Create single MPS-only archive
+        // Packs every .mps file into its own dedicated archive.
+        static void CreateMpsOnlyArchives(string[] mpsFile, string outputDir)
+        {
             if (mpsFile.Length >= 1)
                 for (int i = 0; i < mpsFile.Length; i++)
                 {
@@ -269,28 +287,58 @@ namespace BioLogicZipper
                         Console.WriteLine($"Created {mpsArchive}");
                     }
                 }
+        }
 
-            if (args.Length == 0)
+        // Removes the temporary working directory when the input was an extracted archive.
+        static void CleanupWorkingDirectory(ExtractionContext context)
+        {
+            if (context.UsesTempDir && context.TempRootDir != null && Directory.Exists(context.TempRootDir))
             {
-                Console.WriteLine("Done.");
-                Console.WriteLine("Press any key to exit...");
-                Console.ReadKey();
+                try
+                {
+                    Directory.Delete(context.TempRootDir, true);
+                    Console.WriteLine($"Temporary folder {context.TempRootDir} cleaned up.");
+                }
+                catch
+                {
+                    Console.WriteLine("Warning: Could not remove temporary folder.");
+                }
             }
+        }
+
+        [STAThread]
+        static void Main(string[] args)
+        {
+            string? archivePath = ResolveInput(args);
+            if (archivePath == null)
+                return;
+
+            var context = new ExtractionContext();
+
+            try
+            {
+                string? tempDir = PrepareWorkingDirectory(archivePath, context);
+                if (tempDir == null)
+                    return;
+
+                string outputDir = ResolveOutputDirectory(args, archivePath);
+                string contentDir = ResolveContentDirectory(tempDir);
+
+                string[] mpsFile = Directory.GetFiles(contentDir, "*.mps", SearchOption.AllDirectories);
+
+                CreateGroupArchives(contentDir, mpsFile, outputDir);
+                CreateMpsOnlyArchives(mpsFile, outputDir);
+
+                if (args.Length == 0)
+                {
+                    Console.WriteLine("Done.");
+                    Console.WriteLine("Press any key to exit...");
+                    Console.ReadKey();
+                }
             }
             finally
             {
-                if (usesTempDir && tempRootDir != null && Directory.Exists(tempRootDir))
-                {
-                    try
-                    {
-                        Directory.Delete(tempRootDir, true);
-                        Console.WriteLine($"Temporary folder {tempRootDir} cleaned up.");
-                    }
-                    catch
-                    {
-                        Console.WriteLine("Warning: Could not remove temporary folder.");
-                    }
-                }
+                CleanupWorkingDirectory(context);
             }
         }
     }

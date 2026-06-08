@@ -18,7 +18,7 @@
 
 - ~~Replace extension comparisons using `ToLower()` with `string.Equals(..., StringComparison.OrdinalIgnoreCase)` to avoid unnecessary allocations and culture-sensitive behavior.~~
 
-- Refactor `Main` into smaller functions such as `ResolveInput`, `ExtractArchive`, `ResolveOutputDirectory`, `CreateGroupArchives`, and `CreateMpsOnlyArchives`. This will make the core logic easier to test.
+- ~~Refactor `Main` into smaller functions such as `ResolveInput`, `ExtractArchive`, `ResolveOutputDirectory`, `CreateGroupArchives`, and `CreateMpsOnlyArchives`. This will make the core logic easier to test.~~
 
 ## Verification
 
