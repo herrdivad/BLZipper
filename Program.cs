@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
@@ -20,6 +21,45 @@ namespace BioLogicZipper
 
         // A candidate .mps file together with its prefix-match score against a group.
         sealed record MpsMatch(string Path, int Score);
+
+        // Parsed command-line options: positional arguments (input, optional output dir)
+        // separated from flags.
+        sealed class CliOptions
+        {
+            public string[] Positional = Array.Empty<string>();
+            public bool Overwrite = true;
+        }
+
+        // Splits flags from positional arguments. Supports --overwrite[=true|false] and
+        // --no-overwrite; overwriting existing output archives is enabled by default.
+        static CliOptions ParseOptions(string[] args)
+        {
+            var positional = new List<string>();
+            bool overwrite = true;
+
+            foreach (string arg in args)
+            {
+                if (string.Equals(arg, "--no-overwrite", StringComparison.OrdinalIgnoreCase))
+                {
+                    overwrite = false;
+                }
+                else if (string.Equals(arg, "--overwrite", StringComparison.OrdinalIgnoreCase))
+                {
+                    overwrite = true;
+                }
+                else if (arg.StartsWith("--overwrite=", StringComparison.OrdinalIgnoreCase))
+                {
+                    string value = arg.Substring("--overwrite=".Length);
+                    overwrite = !(string.Equals(value, "false", StringComparison.OrdinalIgnoreCase) || value == "0");
+                }
+                else
+                {
+                    positional.Add(arg);
+                }
+            }
+
+            return new CliOptions { Positional = positional.ToArray(), Overwrite = overwrite };
+        }
 
         static string GetExtension(CompressionType c) => c switch
         {
@@ -111,13 +151,32 @@ namespace BioLogicZipper
             return group.StartsWith(candidate, StringComparison.OrdinalIgnoreCase);
         }
 
-        // Resolves the input archive/folder path from CLI args or a GUI dialog.
+        // Ensures the archive name is unique within this run: appends a "_2", "_3", ...
+        // counter only when the desired name was already produced this run, so two equal
+        // names (e.g. same .mps filename in different folders) cannot clobber each other.
+        // usedArchivePaths records every claimed path for this run.
+        static string ResolveArchiveTarget(string outputDir, string stem, string ext, HashSet<string> usedArchivePaths)
+        {
+            string finalPath = Path.Combine(outputDir, $"{stem}.tar.{ext}");
+
+            int n = 2;
+            while (usedArchivePaths.Contains(finalPath))
+            {
+                finalPath = Path.Combine(outputDir, $"{stem}_{n}.tar.{ext}");
+                n++;
+            }
+
+            usedArchivePaths.Add(finalPath);
+            return finalPath;
+        }
+
+        // Resolves the input archive/folder path from the positional args or a GUI dialog.
         // Returns null when the user cancels the dialog.
-        static string? ResolveInput(string[] args)
+        static string? ResolveInput(string[] positional)
         {
             string archivePath;
 
-            if (args.Length == 0)
+            if (positional.Length == 0)
             {
                 // No CLI args – open GUI dialog
                 OpenFileDialog ofd = new OpenFileDialog();
@@ -136,7 +195,7 @@ namespace BioLogicZipper
             }
             else
             {
-                archivePath = args[0];
+                archivePath = positional[0];
             }
 
             return Path.GetFullPath(archivePath);
@@ -194,16 +253,16 @@ namespace BioLogicZipper
             return tempDir;
         }
 
-        // Determines the output directory, honoring an optional second CLI argument.
-        static string ResolveOutputDirectory(string[] args, string archivePath)
+        // Determines the output directory, honoring an optional second positional argument.
+        static string ResolveOutputDirectory(string[] positional, string archivePath)
         {
             string baseDir = Path.GetDirectoryName(archivePath) ?? Directory.GetCurrentDirectory();
             string outputDir = baseDir;
 
-            if (args.Length > 1)
+            if (positional.Length > 1)
             {
-                // Using args[1] direct, if a absolute path
-                outputDir = Path.IsPathRooted(args[1]) ? args[1] : Path.Combine(baseDir, args[1]);
+                // Using positional[1] direct, if a absolute path
+                outputDir = Path.IsPathRooted(positional[1]) ? positional[1] : Path.Combine(baseDir, positional[1]);
             }
 
             Directory.CreateDirectory(outputDir);
@@ -225,7 +284,7 @@ namespace BioLogicZipper
 
         // Groups non-.mps files by base filename and writes one TAR archive per group,
         // adding the best-matching .mps file to each group.
-        static void CreateGroupArchives(string contentDir, string[] mpsFile, string outputDir)
+        static void CreateGroupArchives(string contentDir, string[] mpsFile, string outputDir, bool overwrite, HashSet<string> usedArchivePaths)
         {
             string[] allFiles = Directory.GetFiles(contentDir, "*", SearchOption.AllDirectories);
 
@@ -270,10 +329,16 @@ namespace BioLogicZipper
                 if (zeroScoreMps)
                     suffix += "_zeroScoreMps";
 
-                string tarFile = Path.Combine(
-                    outputDir,
-                    $"{owner}part_{baseName}_{counter}{suffix}.tar.{GetExtension(compression)}"
-                );
+                string ext = GetExtension(compression);
+                string stem = $"{owner}part_{baseName}_{counter}{suffix}";
+                counter++;
+
+                string tarFile = ResolveArchiveTarget(outputDir, stem, ext, usedArchivePaths);
+                if (!overwrite && File.Exists(tarFile))
+                {
+                    Console.WriteLine($"Skipped existing archive (overwrite disabled): {tarFile}");
+                    continue;
+                }
 
                 using (var stream = File.Create(tarFile))
                 using (var writer = WriterFactory.OpenWriter(stream, ArchiveType.Tar, new WriterOptions(compression)))
@@ -296,12 +361,11 @@ namespace BioLogicZipper
                 }
 
                 Console.WriteLine($"Created {tarFile}");
-                counter++;
             }
         }
 
         // Packs every .mps file into its own dedicated archive.
-        static void CreateMpsOnlyArchives(string[] mpsFile, string outputDir)
+        static void CreateMpsOnlyArchives(string[] mpsFile, string outputDir, bool overwrite, HashSet<string> usedArchivePaths)
         {
             if (mpsFile.Length >= 1)
                 for (int i = 0; i < mpsFile.Length; i++)
@@ -312,7 +376,17 @@ namespace BioLogicZipper
 
                         string owner = GetOwner(mpsFileNameWoExt);
 
-                        string mpsArchive = Path.Combine(outputDir, $"{owner}part_{mpsFileNameWoExt}_mps_only.tar.{GetExtension(CompressionType.GZip)}");
+                        string ext = GetExtension(CompressionType.GZip);
+                        string stem = $"{owner}part_{mpsFileNameWoExt}_mps_only";
+
+                        // Same .mps filename in different folders would otherwise overwrite each
+                        // other; ResolveArchiveTarget appends a counter only on a real collision.
+                        string mpsArchive = ResolveArchiveTarget(outputDir, stem, ext, usedArchivePaths);
+                        if (!overwrite && File.Exists(mpsArchive))
+                        {
+                            Console.WriteLine($"Skipped existing archive (overwrite disabled): {mpsArchive}");
+                            continue;
+                        }
 
                         using (var stream = File.Create(mpsArchive))
                         using (var writer = WriterFactory.OpenWriter(stream, ArchiveType.Tar, new WriterOptions(CompressionType.GZip)))
@@ -345,7 +419,9 @@ namespace BioLogicZipper
         [STAThread]
         static void Main(string[] args)
         {
-            string? archivePath = ResolveInput(args);
+            CliOptions options = ParseOptions(args);
+
+            string? archivePath = ResolveInput(options.Positional);
             if (archivePath == null)
                 return;
 
@@ -357,15 +433,19 @@ namespace BioLogicZipper
                 if (tempDir == null)
                     return;
 
-                string outputDir = ResolveOutputDirectory(args, archivePath);
+                string outputDir = ResolveOutputDirectory(options.Positional, archivePath);
                 string contentDir = ResolveContentDirectory(tempDir);
 
                 string[] mpsFile = Directory.GetFiles(contentDir, "*.mps", SearchOption.AllDirectories);
 
-                CreateGroupArchives(contentDir, mpsFile, outputDir);
-                CreateMpsOnlyArchives(mpsFile, outputDir);
+                // Tracks output archive names already produced this run so equal names get a
+                // counter suffix instead of silently overwriting each other.
+                var usedArchivePaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-                if (args.Length == 0)
+                CreateGroupArchives(contentDir, mpsFile, outputDir, options.Overwrite, usedArchivePaths);
+                CreateMpsOnlyArchives(mpsFile, outputDir, options.Overwrite, usedArchivePaths);
+
+                if (options.Positional.Length == 0)
                 {
                     Console.WriteLine("Done.");
                     Console.WriteLine("Press any key to exit...");

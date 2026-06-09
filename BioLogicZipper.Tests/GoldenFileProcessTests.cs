@@ -19,6 +19,9 @@ public sealed class GoldenFileProcessTests
     // Zero-score: the only same-folder .mps shares no prefix with the group. It is still
     // bundled, but the archive name is tagged with "_zeroScoreMps" for review.
     [InlineData("ZeroScore_noRealData.zip", "ZeroScore")]
+    // Collision: two .mps with the same filename in different folders must not overwrite
+    // each other; the second mps_only archive gets a "_2" counter and both contents survive.
+    [InlineData("Collision_noRealData.zip", "Collision")]
     public void CliProcess_CreatesExpectedGoldenFiles(string inputArchiveName, string expectedOutputSet)
     {
         string repositoryRoot = FindRepositoryRoot();

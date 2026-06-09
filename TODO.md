@@ -10,7 +10,7 @@
 
 - ~~Improve `.mps` matching. Matching currently considers only the group base name and can select an `.mps` file from another folder when multiple experiment folders exist. Include folder context, and avoid selecting a file when the best score is `0`.~~ Folder context now restricts candidates to the group's own folder or an ancestor (excludes sibling experiment folders). A zero-score match in that context is still bundled but the archive name is tagged `_zeroScoreMps`.
 
-- Prevent silent archive overwrites. `File.Create(...)` overwrites existing output archives, and `mps_only` archives can collide when equal `.mps` names exist in different folders. Add collision-safe naming or fail with a clear error.
+- ~~Prevent silent archive overwrites. `File.Create(...)` overwrites existing output archives, and `mps_only` archives can collide when equal `.mps` names exist in different folders. Add collision-safe naming or fail with a clear error.~~ Within a run, equal output names now get a `_2`, `_3`, ... counter only on a real collision (e.g. same `.mps` name in different folders). Across runs, overwriting pre-existing output is on by default but can be disabled with `--overwrite=false` / `--no-overwrite`, which skips clashing files with a console notice.
 
 - ~~Validate TAR extraction paths. `ExtractFullPath = true` should be guarded against archive entries containing `../` or absolute paths so extracted files cannot escape the temporary directory.~~
 

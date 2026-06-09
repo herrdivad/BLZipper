@@ -105,6 +105,25 @@ All `.mps` files are also packed separately into dedicated archives:
 part_<mpsName>_mps_only.tar.gz
 ```
 
+If two `.mps` files share the same filename in different folders, the second archive gets a counter so neither is overwritten:
+
+```
+part_<mpsName>_mps_only.tar.gz
+part_<mpsName>_mps_only_2.tar.gz
+```
+
+---
+
+### ✔️ Overwrite handling
+
+By default, existing output archives in the target directory are overwritten. To protect a previous run's output, disable overwriting:
+
+```
+BioLogicZipper.exe path\to\data.zip path\to\output\ --overwrite=false
+```
+
+(`--no-overwrite` is an alias.) Any archive that would replace an existing file is then skipped and reported on the console instead.
+
 ---
 
 ### ✔️ Folder cleanup
