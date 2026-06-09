@@ -16,7 +16,7 @@ I do **not** provide official BioLogic support, troubleshooting, or customer ser
 
 ---
 
-# 📘 User guide (Program version v3)
+# 📘 User guide (Program version v4)
 
 ## ⭐ Overview
 
