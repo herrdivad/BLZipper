@@ -25,6 +25,11 @@
 		<PackageReference Include="SharpCompress" Version="0.48.1" />
 	</ItemGroup>
 
+	<!-- Expose internal helper methods to the unit test project only. -->
+	<ItemGroup>
+		<InternalsVisibleTo Include="BioLogicZipper.Tests" />
+	</ItemGroup>
+
 	<ItemGroup>
 		<Compile Remove="BioLogicZipper.Tests\**\*.cs" />
 	</ItemGroup>

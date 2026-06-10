@@ -19,7 +19,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\BioLogicZipper.csproj" ReferenceOutputAssembly="false" />
+    <!-- ReferenceOutputAssembly=true so unit tests can call internal helpers directly;
+         the golden-file process tests still launch the built EXE as a subprocess. -->
+    <ProjectReference Include="..\BioLogicZipper.csproj" ReferenceOutputAssembly="true" />
   </ItemGroup>
 
 </Project>

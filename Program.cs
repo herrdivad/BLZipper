@@ -20,11 +20,11 @@ namespace BioLogicZipper
         }
 
         // A candidate .mps file together with its prefix-match score against a group.
-        sealed record MpsMatch(string Path, int Score);
+        internal sealed record MpsMatch(string Path, int Score);
 
         // Parsed command-line options: positional arguments (input, optional output dir)
         // separated from flags.
-        sealed class CliOptions
+        internal sealed class CliOptions
         {
             public string[] Positional = Array.Empty<string>();
             public bool Overwrite = true;
@@ -32,7 +32,7 @@ namespace BioLogicZipper
 
         // Splits flags from positional arguments. Supports --overwrite[=true|false] and
         // --no-overwrite; overwriting existing output archives is enabled by default.
-        static CliOptions ParseOptions(string[] args)
+        internal static CliOptions ParseOptions(string[] args)
         {
             var positional = new List<string>();
             bool overwrite = true;
@@ -61,7 +61,7 @@ namespace BioLogicZipper
             return new CliOptions { Positional = positional.ToArray(), Overwrite = overwrite };
         }
 
-        static string GetExtension(CompressionType c) => c switch
+        internal static string GetExtension(CompressionType c) => c switch
         {
             CompressionType.GZip => "gz",
             CompressionType.BZip2 => "bz2",
@@ -70,7 +70,7 @@ namespace BioLogicZipper
             _ => c.ToString().ToLower()
         };
 
-        static MpsMatch? SelectBestMatchingMps(string groupBaseName, string[] mpsFiles)
+        internal static MpsMatch? SelectBestMatchingMps(string groupBaseName, string[] mpsFiles)
         {
             if (mpsFiles == null || mpsFiles.Length == 0)
                 return null;
@@ -106,7 +106,23 @@ namespace BioLogicZipper
                 .First();
         }
 
-        static bool IsSafeArchiveEntryPath(string destinationDir, string? entryPath)
+        /// <summary>
+        /// Guards against Zip-Slip: confirms that an archive entry will be written
+        /// strictly inside <paramref name="destinationDir"/> when extracted.
+        /// A legitimate entry is always relative to the archive root, so two kinds of
+        /// malicious keys are rejected before <c>Path.Combine</c> can act on them:
+        /// <list type="bullet">
+        /// <item><description>Absolute (rooted) paths such as <c>C:\Windows\System32\evil.dll</c>
+        /// or <c>/etc/cron.d/backdoor</c>. <c>Path.Combine(dir, absolute)</c> discards
+        /// <paramref name="destinationDir"/> entirely and writes wherever the entry points.</description></item>
+        /// <item><description>Traversal paths such as <c>../../etc/passwd</c> that climb out of
+        /// the destination; caught by normalizing with <c>GetFullPath</c> and checking the prefix.</description></item>
+        /// </list>
+        /// </summary>
+        /// <param name="destinationDir">The directory the entry must stay within.</param>
+        /// <param name="entryPath">The archive entry key/path to validate.</param>
+        /// <returns><c>true</c> only when the resolved path stays inside the destination.</returns>
+        internal static bool IsSafeArchiveEntryPath(string destinationDir, string? entryPath)
         {
             if (string.IsNullOrWhiteSpace(entryPath) || Path.IsPathRooted(entryPath))
                 return false;
@@ -119,7 +135,7 @@ namespace BioLogicZipper
             return fullEntryPath.StartsWith(fullDestinationDir, StringComparison.OrdinalIgnoreCase);
         }
 
-        static string GetOwner(string baseName)
+        internal static string GetOwner(string baseName)
         {
             int underscoreIndex = baseName.IndexOf('_');
 
@@ -137,7 +153,7 @@ namespace BioLogicZipper
         // True when candidateDir is the same folder as groupDir or an ancestor of it.
         // Used to keep .mps matching within a group's own folder branch (the .mps may live
         // in an experiment root above the data), while excluding sibling experiment folders.
-        static bool IsSameOrAncestorDirectory(string candidateDir, string groupDir)
+        internal static bool IsSameOrAncestorDirectory(string candidateDir, string groupDir)
         {
             string candidate = Path.GetFullPath(candidateDir);
             string group = Path.GetFullPath(groupDir);
@@ -155,7 +171,7 @@ namespace BioLogicZipper
         // counter only when the desired name was already produced this run, so two equal
         // names (e.g. same .mps filename in different folders) cannot clobber each other.
         // usedArchivePaths records every claimed path for this run.
-        static string ResolveArchiveTarget(string outputDir, string stem, string ext, HashSet<string> usedArchivePaths)
+        internal static string ResolveArchiveTarget(string outputDir, string stem, string ext, HashSet<string> usedArchivePaths)
         {
             string finalPath = Path.Combine(outputDir, $"{stem}.tar.{ext}");
 
@@ -254,7 +270,7 @@ namespace BioLogicZipper
         }
 
         // Determines the output directory, honoring an optional second positional argument.
-        static string ResolveOutputDirectory(string[] positional, string archivePath)
+        internal static string ResolveOutputDirectory(string[] positional, string archivePath)
         {
             string baseDir = Path.GetDirectoryName(archivePath) ?? Directory.GetCurrentDirectory();
             string outputDir = baseDir;
@@ -271,7 +287,7 @@ namespace BioLogicZipper
 
         // Special case: the archive contains a single root folder (e.g., same name as the
         // ZIP file) → dive into that folder instead of treating it as the content root.
-        static string ResolveContentDirectory(string tempDir)
+        internal static string ResolveContentDirectory(string tempDir)
         {
             string[] subDirs = Directory.GetDirectories(tempDir);
             string[] subFiles = Directory.GetFiles(tempDir);
