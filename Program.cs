@@ -26,7 +26,7 @@ namespace BioLogicZipper
         // separated from flags.
         internal sealed class CliOptions
         {
-            public string[] Positional = Array.Empty<string>();
+            public string[] Positional = [];
             public bool Overwrite = true;
         }
 
@@ -195,9 +195,11 @@ namespace BioLogicZipper
             if (positional.Length == 0)
             {
                 // No CLI args – open GUI dialog
-                OpenFileDialog ofd = new OpenFileDialog();
-                ofd.Filter = "Archive files (*.zip;*.tar)|*.zip;*.tar";
-                ofd.Title = "Select an archive file";
+                OpenFileDialog ofd = new()
+                {
+                    Filter = "Archive files (*.zip;*.tar)|*.zip;*.tar",
+                    Title = "Select an archive file"
+                };
 
                 if (ofd.ShowDialog() == DialogResult.OK)
                 {

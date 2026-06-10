@@ -13,7 +13,7 @@ public sealed class ParseOptionsTests
     [Fact]
     public void NoArguments_DefaultsToEmptyPositionalAndOverwriteTrue()
     {
-        Program.CliOptions options = Program.ParseOptions(Array.Empty<string>());
+        Program.CliOptions options = Program.ParseOptions([]);
 
         Assert.Empty(options.Positional);
         Assert.True(options.Overwrite);
@@ -22,7 +22,7 @@ public sealed class ParseOptionsTests
     [Fact]
     public void NoOverwriteFlag_DisablesOverwrite()
     {
-        Program.CliOptions options = Program.ParseOptions(new[] { "--no-overwrite" });
+        Program.CliOptions options = Program.ParseOptions(["--no-overwrite"]);
 
         Assert.False(options.Overwrite);
         Assert.Empty(options.Positional);
@@ -38,7 +38,7 @@ public sealed class ParseOptionsTests
     [InlineData("--overwrite=1", true)]
     public void OverwriteFlagVariants_AreParsed(string flag, bool expected)
     {
-        Program.CliOptions options = Program.ParseOptions(new[] { flag });
+        Program.CliOptions options = Program.ParseOptions([flag]);
 
         Assert.Equal(expected, options.Overwrite);
     }
@@ -47,7 +47,7 @@ public sealed class ParseOptionsTests
     public void PositionalArguments_ArePreservedInOrderAndFlagsRemoved()
     {
         Program.CliOptions options = Program.ParseOptions(
-            new[] { "input.zip", "--no-overwrite", "outDir" });
+            ["input.zip", "--no-overwrite", "outDir"]);
 
         Assert.Equal(new[] { "input.zip", "outDir" }, options.Positional);
         Assert.False(options.Overwrite);
@@ -73,13 +73,13 @@ public sealed class SelectBestMatchingMpsTests
     public void NullOrEmptyCandidates_ReturnsNull()
     {
         Assert.Null(Program.SelectBestMatchingMps("group", null!));
-        Assert.Null(Program.SelectBestMatchingMps("group", Array.Empty<string>()));
+        Assert.Null(Program.SelectBestMatchingMps("group", []));
     }
 
     [Fact]
     public void PrefersHighestPrefixScore()
     {
-        string[] candidates = { @"C:\data\B99_other.mps", @"C:\data\A01_run.mps" };
+        string[] candidates = [@"C:\data\B99_other.mps", @"C:\data\A01_run.mps"];
 
         Program.MpsMatch? match = Program.SelectBestMatchingMps("A01_run", candidates);
 
@@ -93,7 +93,7 @@ public sealed class SelectBestMatchingMpsTests
     {
         // Both share the leading "AB" with the group, producing the same score;
         // the shorter file name wins the tie-break.
-        string[] candidates = { @"C:\data\ABxyz.mps", @"C:\data\ABz.mps" };
+        string[] candidates = [@"C:\data\ABxyz.mps", @"C:\data\ABz.mps"];
 
         Program.MpsMatch? match = Program.SelectBestMatchingMps("AB", candidates);
 
@@ -106,7 +106,7 @@ public sealed class SelectBestMatchingMpsTests
     {
         // The caller (CreateGroupArchives) is responsible for tagging a zero-score match;
         // the selector itself must still return a candidate rather than null.
-        string[] candidates = { @"C:\data\ZZZZ.mps" };
+        string[] candidates = [@"C:\data\ZZZZ.mps"];
 
         Program.MpsMatch? match = Program.SelectBestMatchingMps("AAAA", candidates);
 
@@ -253,7 +253,7 @@ public sealed class ResolveOutputDirectoryTests : IDisposable
     {
         string archivePath = Path.Combine(_root, "data.zip");
 
-        string outputDir = Program.ResolveOutputDirectory(new[] { archivePath }, archivePath);
+        string outputDir = Program.ResolveOutputDirectory([archivePath], archivePath);
 
         Assert.Equal(_root, outputDir);
         Assert.True(Directory.Exists(outputDir));
@@ -265,7 +265,7 @@ public sealed class ResolveOutputDirectoryTests : IDisposable
         string archivePath = Path.Combine(_root, "data.zip");
 
         string outputDir = Program.ResolveOutputDirectory(
-            new[] { archivePath, "results" }, archivePath);
+            [archivePath, "results"], archivePath);
 
         Assert.Equal(Path.Combine(_root, "results"), outputDir);
         Assert.True(Directory.Exists(outputDir));
@@ -278,7 +278,7 @@ public sealed class ResolveOutputDirectoryTests : IDisposable
         string absoluteOut = Path.Combine(_root, "absolute_out");
 
         string outputDir = Program.ResolveOutputDirectory(
-            new[] { archivePath, absoluteOut }, archivePath);
+            [archivePath, absoluteOut], archivePath);
 
         Assert.Equal(absoluteOut, outputDir);
         Assert.True(Directory.Exists(outputDir));

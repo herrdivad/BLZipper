@@ -1,0 +1,21 @@
+root = true
+
+[*.cs]
+# Windows line endings per project convention.
+end_of_line = crlf
+
+# --- Collection expressions (C# 12 / .NET 8) ---
+# Prefer the [...] collection-expression syntax in general...
+dotnet_style_prefer_collection_expression = true:suggestion
+
+# ...apply it for plain array creation (IDE0300, e.g. new[] { x } -> [x])
+# and for empty collections (IDE0301, e.g. Array.Empty<T>() -> []).
+dotnet_diagnostic.IDE0300.severity = suggestion
+dotnet_diagnostic.IDE0301.severity = suggestion
+
+# ...but do NOT rewrite fluent LINQ chains ending in ToArray()/ToList()
+# (IDE0305). That rule introduces the spread element `..`, which we avoid
+# for readability (e.g. xs.Where(...).ToArray() stays as-is, not [.. xs.Where(...)]).
+dotnet_diagnostic.IDE0305.severity = none
+
+dotnet_diagnostic.IDE0057.severity = none
