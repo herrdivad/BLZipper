@@ -1,6 +1,8 @@
-﻿# 📦 BLZipper
+﻿![BLZipper Logo](./assets/BLZipper_Logo_small.png)
 
-A packaging utility for BioLogic device data used in the Chemotion ELN converter and its shuttle service tool.
+# 📦 BLZipper
+
+A packaging utility for BioLogic device data used in the [Chemotion ELN](https://chemotion.net/) [converter](https://complat.github.io/chemotion-converter-profiles/) and its shuttle service tool.
 
 ## ⚠️ Disclaimer
 
